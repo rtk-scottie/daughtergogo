@@ -248,8 +248,10 @@
                     <span class="text-5xl text-[#F4A261] font-bold">VS</span>
 
                     <!-- Monster -->
-                    <div class="flex flex-col items-center">
+                    <div class="flex flex-col items-center relative">
                         <span id="monster-character" class="text-6xl">👾</span>
+                        <!-- Flame icon for angry monster -->
+                        <span id="monster-angry-icon" class="text-4xl absolute -right-8 top-0 text-red-500 hidden">🔥</span>
                         <p class="text-xl font-bold text-[#5C3A21] mt-2">小怪獸</p>
                         <div class="w-40 h-6 bg-gray-300 rounded-full mt-2 relative overflow-hidden shadow-inner">
                             <div id="monster-health-inner" class="absolute inset-0 bg-green-500 rounded-full transition-all duration-300"></div>
@@ -267,11 +269,14 @@
                     <button id="destruction-ray-button" class="bg-[#E76F51] text-white font-bold py-3 px-6 rounded-full shadow-lg hover:bg-[#D96C4C] transition-colors transform hover:scale-105">
                         🔥 破壞死光 (消耗10點)
                     </button>
+                    <button id="reflect-mirror-button" class="bg-gray-400 text-white font-bold py-3 px-6 rounded-full shadow-lg cursor-not-allowed transition-colors transform hover:scale-105">
+                        🔄 反射鏡 (消耗10點)
+                    </button>
                 </div>
                 
                 <div class="mt-4">
                     <button id="reset-monster-button" class="bg-gray-400 text-white font-bold py-2 px-6 rounded-full shadow-md hover:bg-gray-500 transition-colors hidden">
-                        重置怪獸
+                        重置戰鬥
                     </button>
                 </div>
             </section>
@@ -309,6 +314,9 @@
         // Local variables for score and monster health
         let currentScore = 0;
         let monsterHealth = 100;
+        // New battle state flags
+        let isWarriorDefeated = false;
+        let isMonsterAngry = false; // Renamed from isReflectMirrorActive for clarity of monster state
 
         // Local storage keys
         const LAST_RESET_DATE_KEY = 'last_reset_date';
@@ -337,10 +345,10 @@
         // List of monster emojis (more than 100 for variety)
         const MONSTER_EMOJIS = [
             '👾', '👽', '👻', '👺', '👹', '💀', '🤡', '🤖', '🎃', '😈',
-            '🦠', '🐉', '🦖', '🦈', '🦀', '🦂', '🕷️', '🦗', '🐍', '🐙',
+            '🦠', '🐉', '🦖', '🦈', '🦀', '🦂', '🕷️', '🦗', '🐍', ' ',
             '🐌', '🦋', '🐛', '🐝', '🐞', '🐠', '🐡', '🐢', '🐊', '🦍',
             '🐅', '🐆', '🦓', '🦌', '🐪', '🦒', '🐘', '🦏', '🦛', '🐁',
-            '🐀', '🐹', '🐰', '🐻', '🐼', '🐨', '🐯', '�', '🐮', '🐷',
+            '🐀', '🐹', '🐰', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷',
             '🐸', '🐒', '🐶', '🐺', '🦊', '🐱', '🐈', '🐎', '🦄', '🐔',
             '🐧', '🐦', '🐥', '🦆', '🦅', '🦉', '🦇', '🐗', '🐺', '🐲',
             '🐾', '🦉', '🦋', '🦑', '🐛', '🦖', '🦕', '🦂', '🦗', '🕷️',
@@ -427,10 +435,9 @@
             const healthBarInner = document.getElementById('monster-health-inner');
             const healthText = document.getElementById('monster-health-text');
             const resetButton = document.getElementById('reset-monster-button');
-            const dragonClawButton = document.getElementById('dragon-claw-button');
-            const destructionRayButton = document.getElementById('destruction-ray-button');
+            // Attack buttons are managed by updateAttackButtonStates, but reset button is here.
 
-            if (healthBarInner && healthText && resetButton && dragonClawButton && destructionRayButton) {
+            if (healthBarInner && healthText && resetButton) {
                 let percentage = (monsterHealth / 100) * 100;
                 if (percentage < 0) percentage = 0;
                 healthBarInner.style.width = `${percentage}%`;
@@ -444,17 +451,79 @@
                     healthBarInner.className = 'absolute inset-0 bg-red-500 rounded-full transition-all duration-300';
                 }
 
-                if (monsterHealth <= 0) {
+                // Show reset button only if monster is defeated or warrior is defeated
+                if (monsterHealth <= 0 || isWarriorDefeated) {
                     resetButton.classList.remove('hidden');
-                    dragonClawButton.classList.add('hidden');
-                    destructionRayButton.classList.add('hidden');
                 } else {
                     resetButton.classList.add('hidden');
-                    dragonClawButton.classList.remove('hidden');
-                    destructionRayButton.classList.remove('hidden');
                 }
             }
         }
+
+        // Function to manage the state (enabled/disabled and color) of attack buttons
+        function updateAttackButtonStates() {
+            const dragonClawButton = document.getElementById('dragon-claw-button');
+            const destructionRayButton = document.getElementById('destruction-ray-button');
+            const reflectMirrorButton = document.getElementById('reflect-mirror-button');
+            const monsterAngryIcon = document.getElementById('monster-angry-icon');
+
+            // Toggle monster angry icon visibility
+            if (monsterAngryIcon) {
+                if (isMonsterAngry) {
+                    monsterAngryIcon.classList.remove('hidden');
+                } else {
+                    monsterAngryIcon.classList.add('hidden');
+                }
+            }
+
+            // If warrior is defeated, disable all attack buttons
+            if (isWarriorDefeated) {
+                dragonClawButton.disabled = true;
+                dragonClawButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+                dragonClawButton.classList.remove('bg-[#2A9D8F]', 'hover:bg-[#264653]');
+
+                destructionRayButton.disabled = true;
+                destructionRayButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+                destructionRayButton.classList.remove('bg-[#E76F51]', 'hover:bg-[#D96C4C]');
+
+                reflectMirrorButton.disabled = true;
+                reflectMirrorButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+                reflectMirrorButton.classList.remove('bg-[#2196F3]', 'hover:bg-[#1976D2]');
+                return;
+            }
+
+            // Conditions for each button
+            // Dragon Claw: >= 2 points AND monster NOT angry
+            dragonClawButton.disabled = (currentScore < 2 || isMonsterAngry);
+            if (dragonClawButton.disabled) {
+                dragonClawButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+                dragonClawButton.classList.remove('bg-[#2A9D8F]', 'hover:bg-[#264653]');
+            } else {
+                dragonClawButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                dragonClawButton.classList.add('bg-[#2A9D8F]', 'hover:bg-[#264653]');
+            }
+
+            // Destruction Ray: >= 10 points AND monster NOT angry
+            destructionRayButton.disabled = (currentScore < 10 || isMonsterAngry);
+            if (destructionRayButton.disabled) {
+                destructionRayButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+                destructionRayButton.classList.remove('bg-[#E76F51]', 'hover:bg-[#D96C4C]');
+            } else {
+                destructionRayButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                destructionRayButton.classList.add('bg-[#E76F51]', 'hover:bg-[#D96C4C]');
+            }
+
+            // Reflect Mirror: >= 10 points AND monster IS angry
+            reflectMirrorButton.disabled = (currentScore < 10 || !isMonsterAngry);
+            if (reflectMirrorButton.disabled) {
+                reflectMirrorButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+                reflectMirrorButton.classList.remove('bg-[#2196F3]', 'hover:bg-[#1976D2]');
+            } else {
+                reflectMirrorButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                reflectMirrorButton.classList.add('bg-[#2196F3]', 'hover:bg-[#1976D2]'); // Blue active state
+            }
+        }
+
 
         function updateCollectedMonstersDisplay() {
             const collectedMonstersDisplay = document.getElementById('collected-monsters-display');
@@ -492,6 +561,9 @@
                 monsterElement.classList.remove('animate-bounce');
             }
             document.getElementById('attack-message').textContent = '去攻擊它吧！';
+            isWarriorDefeated = false; // Reset warrior defeated state
+            isMonsterAngry = false; // Reset monster angry state
+            updateAttackButtonStates(); // Update buttons after reset
             saveLocalData(); // Save reset monster health and new monster emoji
         }
 
@@ -542,14 +614,19 @@
             updateScoreDisplay();
             updateMonsterHealthDisplay();
             updateCollectedMonstersDisplay(); // Initialize collected monsters display
+            updateAttackButtonStates(); // Set initial button states
 
             const cards = document.querySelectorAll('.card');
             
             cards.forEach(card => {
                 card.addEventListener('click', (event) => {
-                    // Prevent card flip if the click originated from the input field
-                    if (event.target.tagName === 'INPUT' && event.target.id === 'slogan-card-4-points') {
-                        return; 
+                    const cardId = card.getAttribute('data-log-id');
+                    // Only flip cards that are NOT the custom points card, or if the click is not on its input/button
+                    if (cardId === 'slogan-card-4') {
+                        // Prevent card from flipping when clicking the input field itself, or the button on its back
+                        if (event.target.tagName === 'INPUT' || (event.target.tagName === 'BUTTON' && event.target.classList.contains('hug-button'))) {
+                            return; 
+                        }
                     }
                     card.classList.toggle('flipped');
                 });
@@ -620,7 +697,7 @@
                     createParticles(button.innerHTML, button); 
                     updateScoreDisplay();
                     saveLocalData(); // Save score and click state
-
+                    updateAttackButtonStates(); // Ensure attack button states update immediately
                     checkSetCompletionAndAwardBonus();
                 });
             });
@@ -664,6 +741,7 @@
             // Magic Battle Logic
             const dragonClawButton = document.getElementById('dragon-claw-button');
             const destructionRayButton = document.getElementById('destruction-ray-button');
+            const reflectMirrorButton = document.getElementById('reflect-mirror-button');
             const monsterCharacter = document.getElementById('monster-character');
             const attackMessage = document.getElementById('attack-message');
 
@@ -671,24 +749,38 @@
                 const rand = Math.random();
                 if (rand < 0.10) { // 10% chance for 1 damage
                     return 1;
-                } else if (rand < 0.10 + 0.45) { // 45% chance for 5 damage (0.10 + 0.45 = 0.55)
+                } else if (rand < 0.10 + 0.40) { // 40% chance for 5 damage (0.10 + 0.40 = 0.50)
                     return 5;
-                } else if (rand < 0.10 + 0.45 + 0.30) { // 30% chance for 10 damage (0.55 + 0.30 = 0.85)
+                } else if (rand < 0.10 + 0.40 + 0.30) { // 30% chance for 10 damage (0.50 + 0.30 = 0.80)
                     return 10;
-                } else { // 15% chance for 20 damage
+                } else { // 20% chance for 20 damage
                     return 20;
                 }
             }
 
             function performAttack(damageAmount, scoreCost, attackName) {
+                if (isWarriorDefeated) { // Prevent attacking if warrior is defeated
+                    attackMessage.textContent = '小勇士已經被打倒了，請重置戰鬥！';
+                    updateAttackButtonStates(); // Ensure buttons are disabled
+                    return;
+                }
                 if (currentScore < scoreCost) {
                     attackMessage.textContent = `妳的魔法點數不足喔！需要 ${scoreCost} 點才能使用 ${attackName}。`;
+                    updateAttackButtonStates(); // Ensure buttons are correctly enabled/disabled
                     return;
                 }
 
                 if (monsterHealth <= 0) {
-                     attackMessage.textContent = '怪獸已經被打敗了！點擊「重置怪獸」按鈕重新挑戰！';
+                     attackMessage.textContent = '怪獸已經被打敗了！點擊「重置戰鬥」按鈕重新挑戰！';
+                     updateAttackButtonStates(); // Ensure buttons are correctly enabled/disabled
                      return;
+                }
+                
+                // Special check for Reflect Mirror: can only be used if monster is angry
+                if (attackName === '反射鏡' && !isMonsterAngry) {
+                    attackMessage.textContent = '反射鏡現在無法使用喔！怪獸還沒生氣！';
+                    updateAttackButtonStates();
+                    return;
                 }
 
                 currentScore -= scoreCost;
@@ -697,7 +789,15 @@
                 let actualDamage = damageAmount;
                 if (attackName === '龍爪') {
                     actualDamage = calculateDragonClawDamage();
+                    isMonsterAngry = false; // Monster is not angry from Dragon Claw
+                } else if (attackName === '反射鏡') {
+                    actualDamage = 20; // Fixed damage for Reflect Mirror (Adjusted from 50 to 20)
+                    isMonsterAngry = false; // Monster is no longer angry after Reflect Mirror
+                } else if (attackName === '破壞死光') {
+                    actualDamage = 40; // Fixed damage for Destruction Ray (Adjusted from 50 to 40)
+                    isMonsterAngry = false; // Monster is not angry from Destruction Ray initially
                 }
+
 
                 monsterHealth -= actualDamage;
                 if (monsterHealth < 0) {
@@ -705,45 +805,84 @@
                 }
                 
                 updateMonsterHealthDisplay();
-                saveLocalData(); // Save monster health and updated score
+                saveLocalData(); 
 
                 monsterCharacter.classList.add('shake');
                 setTimeout(() => {
                     monsterCharacter.classList.remove('shake');
                 }, 500);
 
-                createParticles('💥', document.body); // Attack particles from center of body
+                createParticles('💥', document.body); 
 
                 if (monsterHealth <= 0) {
                     attackMessage.textContent = `太棒了！妳用 ${attackName} 擊敗了怪獸！`;
-                    const defeatedMonsterEmoji = monsterCharacter.textContent; // Get the emoji BEFORE changing text
-                    monsterCharacter.textContent = ' defeated!'; // Monster shows defeated state
+                    const defeatedMonsterEmoji = monsterCharacter.textContent; 
+                    monsterCharacter.textContent = ' defeated!'; 
                     
                     showCustomConfirm('恭喜妳打敗了怪獸！要重新挑戰嗎？', () => {
-                        collectedMonsters.add(defeatedMonsterEmoji); // Add to collection
-                        updateCollectedMonstersDisplay(); // Update display
-                        
-                        resetMonster(); // Reset monster and get new random emoji
-                        // currentScore is NOT reset here
-                        updateScoreDisplay(); // Update display with currentScore (which is not 0)
-                        // Reset bonus status for the new challenge day (if already awarded)
+                        collectedMonsters.add(defeatedMonsterEmoji); 
+                        updateCollectedMonstersDisplay(); 
+                        resetMonster(); 
+                        updateScoreDisplay(); 
                         sloganBonusAwarded = false; 
                         danceBonusAwarded = false;
-                        clickedSloganCardsToday.clear(); // Clear click states for new day
-                        clickedDanceCardsToday.clear(); // Clear click states for new day
-                        saveLocalData(); // Save all reset states and collected monsters
+                        clickedSloganCardsToday.clear(); 
+                        clickedDanceCardsToday.clear(); 
+                        isWarriorDefeated = false; 
+                        isMonsterAngry = false; // Ensure angry state is reset
+                        updateAttackButtonStates(); 
+                        saveLocalData(); 
                     });
                 } else {
-                    attackMessage.textContent = `妳用 ${attackName} 造成了 ${actualDamage} 點傷害！怪獸還剩下 ${monsterHealth} 點血量。`; // Use actualDamage here
+                    attackMessage.textContent = `妳用 ${attackName} 造成了 ${actualDamage} 點傷害！怪獸還剩下 ${monsterHealth} 點血量。`; 
+                
+                    // Logic for Monster Counter-attack after Destruction Ray
+                    if (attackName === '破壞死光') {
+                        const counterChance = Math.random();
+                        if (counterChance < 0.25) { // 25% chance for monster to get angry and counter (Adjusted from 0.20 to 0.25)
+                            isMonsterAngry = true; // Monster gets angry
+                            attackMessage.textContent += '\n怪獸生氣了，它使出了大聲咆哮進行反擊！';
+                            // Check warrior's health after counter
+                            if (currentScore < 10) { // Warrior defeated if points are too low for reflect mirror after the main attack
+                                isWarriorDefeated = true;
+                                currentScore = 0; // Magic points go to 0
+                                updateScoreDisplay();
+                                attackMessage.textContent += '\n小勇士被打倒了！魔法點數歸零。';
+                                showCustomConfirm('小勇士被打倒了！要重置戰鬥嗎？', () => {
+                                    resetMonster();
+                                    isWarriorDefeated = false; 
+                                    currentScore = 0; 
+                                    updateScoreDisplay();
+                                    sloganBonusAwarded = false;
+                                    danceBonusAwarded = false;
+                                    clickedSloganCardsToday.clear();
+                                    clickedDanceCardsToday.clear();
+                                    isMonsterAngry = false;
+                                    updateAttackButtonStates(); 
+                                    saveLocalData();
+                                });
+                            } 
+                        } else {
+                            isMonsterAngry = false; // Monster is not angry
+                        }
+                    } else if (attackName === '反射鏡') {
+                         isMonsterAngry = false; // Reflect Mirror removes angry state
+                         attackMessage.textContent = `妳用 ${attackName} 反射了怪獸的攻擊，造成了 ${actualDamage} 點傷害！怪獸還剩下 ${monsterHealth} 點血量。`;
+                    }
                 }
+                updateAttackButtonStates(); // Update button states after every attack action or state change
             }
 
             dragonClawButton.addEventListener('click', () => {
-                performAttack(5, 2, '龍爪'); // Pass base damage (5) for Dragon Claw, but it will be recalculated
+                performAttack(5, 2, '龍爪'); 
             });
 
             destructionRayButton.addEventListener('click', () => {
-                performAttack(50, 10, '破壞死光');
+                performAttack(40, 10, '破壞死光'); // Pass base damage (40)
+            });
+
+            reflectMirrorButton.addEventListener('click', () => {
+                performAttack(20, 10, '反射鏡'); // Pass base damage (20)
             });
 
             // Custom Confirm Modal (replaces window.confirm)
@@ -774,14 +913,14 @@
             const resetButton = document.getElementById('reset-monster-button');
             resetButton.addEventListener('click', () => {
                 resetMonster();
-                // currentScore is NOT reset here
-                updateScoreDisplay(); // Update display with currentScore (which is not 0)
+                updateScoreDisplay(); 
                 sloganBonusAwarded = false; 
                 danceBonusAwarded = false;
                 clickedSloganCardsToday.clear();
                 clickedDanceCardsToday.clear();
                 saveLocalData();
-                showBonusMessage("怪獸已重置，可以開始新的挑戰囉！"); // Message updated to reflect score not reset
+                showBonusMessage("戰鬥已重置！"); 
+                updateAttackButtonStates(); 
             });
 
             // Export and Import Functionality
@@ -790,21 +929,21 @@
             const importFileInput = document.getElementById('import-file-input');
 
             exportButton.addEventListener('click', () => {
-                const data = JSON.stringify(Array.from(collectedMonsters), null, 2); // Convert Set to Array for JSON
+                const data = JSON.stringify(Array.from(collectedMonsters), null, 2); 
                 const blob = new Blob([data], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'monsters_collection.json'; // Suggested filename
+                a.download = 'monsters_collection.json'; 
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                showBonusMessage('收集盒已匯出！請檢查您的下載項目。'); // Added more specific message
+                showBonusMessage('收集盒已匯出！請檢查您的下載項目。'); 
             });
 
             importButton.addEventListener('click', () => {
-                importFileInput.click(); // Trigger file input click
+                importFileInput.click(); 
             });
 
             importFileInput.addEventListener('change', (event) => {
@@ -834,4 +973,4 @@
     </script>
 </body>
 </html>
-�
+ 
